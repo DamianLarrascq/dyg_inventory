@@ -169,3 +169,37 @@ class VentaItem(models.Model):
             self.producto.refresh_from_db()
         super().save(*args, **kwargs)
         self.venta.save()
+
+    
+class Reserva(models.Model):
+
+    ESTADOS_RESERVA = [
+        ('pendiente', 'Pendiente'),
+        ('confirmada', 'Confirmada'),
+        ('cancelada', 'Cancelada'),
+        ('completada', 'Completada'),
+    ]
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas')
+    servicios = models.ForeignKey(Servicio, on_delete=models.CASCADE, related_name='reservas', null=True, blank=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS_RESERVA, default='pendiente')
+    fecha_turno = models.DateTimeField()
+    hora = models.TimeField()
+    descripcion = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Reserva'
+        verbose_name_plural = 'Reservas'
+        ordering = ['-fecha_turno']
+
+    def __str__(self):
+        return f'Reserva #{self.pk} - {self.cliente} - {self.fecha_turno.strftime('%d/%m/%Y %H:%M')}'
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if not is_new:
+            self.fecha_turno = self.fecha_turno.replace(hour=self.hora.hour, minute=self.hora.minute)
+            Reserva.objects.filter(pk=self.pk).update(fecha_turno=self.fecha_turno)
+
