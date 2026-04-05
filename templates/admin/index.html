@@ -1,0 +1,39 @@
+{% extends "admin/index.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+
+{# KPIs #}
+{% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-col lg:flex-row" %}
+    {% for card in kpi %}
+        {% component "unfold/components/card.html" with class="lg:w-1/4" footer=card.footer %}
+            {% component "unfold/components/text.html" %}{{ card.title }}{% endcomponent %}
+            {% component "unfold/components/title.html" %}{{ card.metric }}{% endcomponent %}
+        {% endcomponent %}
+    {% endfor %}
+{% endcomponent %}
+
+{# Reservas de la semana + Stock bajo #}
+{% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-col lg:flex-row" %}
+
+    {# Calendario de reservas #}
+    {% trans "Reservas esta semana" as title %}
+    {% component "unfold/components/card.html" with class="lg:w-2/3" title=title %}
+        {% component "unfold/components/table.html" with card_included=1 striped=1 table=tabla_reservas %}{% endcomponent %}
+    {% endcomponent %}
+
+    {# Stock bajo #}
+    {% trans "Stock bajo" as title %}
+    {% component "unfold/components/card.html" with class="lg:w-1/3" title=title %}
+        {% component "unfold/components/table.html" with card_included=1 table=tabla_stock %}{% endcomponent %}
+    {% endcomponent %}
+
+{% endcomponent %}
+
+{# Clientes nuevos #}
+{% trans "Clientes nuevos (últimos 7 días)" as title %}
+{% component "unfold/components/card.html" with class="mb-8" title=title %}
+    {% component "unfold/components/table.html" with card_included=1 table=tabla_clientes %}{% endcomponent %}
+{% endcomponent %}
+
+{% endblock %}

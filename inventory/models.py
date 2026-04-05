@@ -1,8 +1,6 @@
-from email.policy import default
-from operator import is_
-from tabnanny import verbose
 from django.db import models
-from django.urls import reverse
+from django.dispatch import receiver
+from django.db.models.signals import post_save
 
 
 class Servicio(models.Model):
@@ -179,11 +177,10 @@ class Reserva(models.Model):
         ('cancelada', 'Cancelada'),
         ('completada', 'Completada'),
     ]
-    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas')
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas') 
     servicios = models.ForeignKey(Servicio, on_delete=models.CASCADE, related_name='reservas', null=True, blank=True)
     estado = models.CharField(max_length=20, choices=ESTADOS_RESERVA, default='pendiente')
     fecha_turno = models.DateTimeField()
-    hora = models.TimeField()
     descripcion = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -196,10 +193,24 @@ class Reserva(models.Model):
     def __str__(self):
         return f'Reserva #{self.pk} - {self.cliente} - {self.fecha_turno.strftime('%d/%m/%Y %H:%M')}'
 
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-        if not is_new:
-            self.fecha_turno = self.fecha_turno.replace(hour=self.hora.hour, minute=self.hora.minute)
-            Reserva.objects.filter(pk=self.pk).update(fecha_turno=self.fecha_turno)
 
+@receiver(post_save, sender=Reserva)
+def reserva_a_atencion(sender, instance, **kwargs):
+    if instance.estado == 'completada':
+        existe = Atencion.objects.filter(
+            cliente = instance.cliente,
+            fecha = instance.fecha_turno,
+        ).exists()
+
+        if not existe:
+            atencion = Atencion.objects.create(
+                cliente = instance.cliente,
+                fecha = instance.fecha_turno,
+                notas = instance.descripcion,
+            )
+            if instance.servicios:
+                AtencionServicio.objects.create(
+                    atencion = atencion,
+                    servicio = instance.servicios,
+                    precio_aplicado = instance.servicios.precio,
+                )
