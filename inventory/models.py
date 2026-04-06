@@ -19,7 +19,7 @@ class Servicio(models.Model):
 
 class Cliente(models.Model):
     nombre = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(null=True, blank=True, unique=True)
     telefono = models.CharField(max_length=10)
     descripcion = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

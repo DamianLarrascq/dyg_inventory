@@ -13,21 +13,23 @@
     {% endfor %}
 {% endcomponent %}
 
-{# Reservas de la semana + Stock bajo #}
+{# Reservas + Stock #}
 {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-col lg:flex-row" %}
-
-    {# Calendario de reservas #}
     {% trans "Reservas esta semana" as title %}
     {% component "unfold/components/card.html" with class="lg:w-2/3" title=title %}
         {% component "unfold/components/table.html" with card_included=1 striped=1 table=tabla_reservas %}{% endcomponent %}
     {% endcomponent %}
 
-    {# Stock bajo #}
     {% trans "Stock bajo" as title %}
     {% component "unfold/components/card.html" with class="lg:w-1/3" title=title %}
         {% component "unfold/components/table.html" with card_included=1 table=tabla_stock %}{% endcomponent %}
     {% endcomponent %}
+{% endcomponent %}
 
+{# Atenciones #}
+{% trans "Atenciones esta semana" as title %}
+{% component "unfold/components/card.html" with class="mb-8" title=title %}
+    {% component "unfold/components/table.html" with card_included=1 striped=1 table=tabla_atenciones %}{% endcomponent %}
 {% endcomponent %}
 
 {# Clientes nuevos #}
