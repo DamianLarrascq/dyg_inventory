@@ -7,11 +7,6 @@ from .models import (Servicio, Cliente, Atencion, AtencionServicio, Producto, Ve
 from django import forms
 
 
-admin.site.site_header = 'Peluqueria DYG'
-admin.site.site_title = 'Peluqueria DYG'
-admin.site.index_title = 'Panel de Control'
-
-
 class ReservaForm(ModelForm):
 
     fecha_turno = forms.DateTimeField(
@@ -46,17 +41,18 @@ class ReservaAdmin(ModelAdmin):
 
 class ReservaInline(TabularInline):
     model = Reserva
-    form = ReservaForm
+    tab = True
     fields = ('fecha_turno', 'estado', 'descripcion', 'servicios')
     readonly_fields = ('fecha_turno', 'estado', 'descripcion')
     extra = 0
     can_delete = False
     show_change_link = True
     verbose_name = 'Reserva'
-    verbose_name_plural = 'Reservas'
+    verbose_name_plural = 'Historial de reservas'
 
 class AtencionInline(TabularInline):
     model = Atencion
+    tab = True
     fields = ('fecha', 'total', 'notas')
     readonly_fields = ('fecha', 'total', 'notas')
     extra = 0
@@ -73,6 +69,18 @@ class AtencionServicioInline(TabularInline):
 
     class Media:
         js = ('admin/js/autocomplete_precio.js',)
+
+
+class VentaInline(TabularInline):
+    model = Venta
+    tab = True
+    fields = ('fecha', 'total', 'notas')
+    readonly_fields = ('fecha', 'total', 'notas')
+    extra = 0
+    can_delete = False
+    show_change_link = True
+    verbose_name = 'Compra'
+    verbose_name_plural = 'Historial de compras'
 
 
 class VentaItemInline(TabularInline):
@@ -94,16 +102,16 @@ class ClienteAdmin(ModelAdmin):
     list_display = ("nombre", "telefono", "email", "created_at")
     search_fields = ("nombre", "telefono", "email")
     list_filter = ("created_at",)
-    inlines = [AtencionInline, ReservaInline]
+    inlines = [AtencionInline, ReservaInline, VentaInline]
     readonly_fields = ("created_at",)
     fieldsets = (
-        (None, {
-            "fields": (("nombre",), ("telefono", "email"))
-        }),
-        ("Información adicional", {
-            "fields": ("descripcion", "created_at"),
-            "classes": ("collapse",),
-        }),
+        (
+            "Información",
+            {
+                "classes": ["tab"],
+                "fields": (("nombre",), ("telefono", "email"), "descripcion", "created_at"),
+            },
+        ),
     )
 
 
@@ -125,7 +133,7 @@ class AtencionForm(ModelForm):
     )
     class Meta:
         model = Atencion
-        fields = '__all__'
+        fields = ['cliente', 'fecha_turno', 'total']
         widgets = {
             'fecha': UnfoldAdminSplitDateTimeWidget,
         }
@@ -140,6 +148,15 @@ class AtencionAdmin(ModelAdmin):
     inlines = [AtencionServicioInline]
     readonly_fields = ("total",)
     autocomplete_fields = ("cliente",)
+    fieldsets = (
+        (None, {
+            'fields': ('cliente', 'fecha_turno', 'total'),
+        }),
+        ("Notas", {
+            'fields': ('notas',),
+            'classes': ('collapse',),
+        }),
+    )
 
     @admin.display(description="Notas")
     def notas_cortas(self, obj):
