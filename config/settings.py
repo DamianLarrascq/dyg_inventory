@@ -30,6 +30,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+LOGIN_URL = '/admin/login/'
+LOGIN_REDIRECT_URL = '/admin'
 
 # Application definition
 
@@ -55,7 +57,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # 'inventory.middleware.AuditLogMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -79,6 +80,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 UNFOLD = {
     'DASHBOARD_CALLBACK': 'inventory.dashboard.dashboard_callback',
+    'SITE_TITLE': 'Peluquería DYG',
+    'SITE_HEADER': 'Peluquería DYG',
+    'SITE_SUBHEADER': 'Gestión de inventario',
 }
 
 # Database
