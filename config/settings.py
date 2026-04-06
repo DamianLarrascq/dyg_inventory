@@ -30,6 +30,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+LOGIN_URL = '/admin/login/'
+LOGIN_REDIRECT_URL = '/admin'
 
 # Application definition
 
