@@ -1,4 +1,7 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
+from django.forms import ModelForm
+from unfold.widgets import UnfoldAdminSplitDateTimeWidget
 from django.utils.html import format_html
 from .models import (Servicio, Cliente, Atencion, AtencionServicio, Producto, Venta, VentaItem, Reserva)
 from django import forms
@@ -9,34 +12,18 @@ admin.site.site_title = 'Peluqueria DYG'
 admin.site.index_title = 'Panel de Control'
 
 
-@admin.action(description='Convertir a Atencion')
-def convertir_a_atencion(modeladmin, request, queryset):
-    for reserva in queryset.filter(estado='confirmada'):
-        atencion = Atencion.objects.create(
-            cliente=reserva.cliente,
-            fecha=reserva.fecha_turno,
-            total=0,
-            notas=reserva.descripcion
-        )
-        AtencionServicio.objects.create(
-            atencion=atencion,
-            servicio=reserva.servicios,
-            precio_aplicado=reserva.servicios.precio,
-        )
-        reserva.estado = 'completada'
-        reserva.save()
-    modeladmin.message_user(request, f'{queryset.count()} reservas convertidas a atenciones')
+class ReservaForm(ModelForm):
 
-
-class ReservaForm(forms.ModelForm):
+    fecha_turno = forms.DateTimeField(
+        widget= forms.DateTimeInput(
+            attrs={'type': 'datetime-local'},
+            format='%d/%m/%Y %H:%M',
+        ),
+        input_formats=['%d/%m/%Y %H:%M'],
+    )
     class Meta:
         model = Reserva
-        fields = ['cliente', 'servicios','fecha_turno', 'estado', 'descripcion',]
-        # fields = '__all__'
-        widgets = {
-            'fecha_turno': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
-            'hora': forms.TimeInput(attrs={'type': 'time'}),
-        }
+        fields = ['cliente', 'servicios', 'fecha_turno', 'estado', 'descripcion']
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -44,18 +31,20 @@ class ReservaForm(forms.ModelForm):
 
 
 @admin.register(Reserva)
-class ReservaAdmin(admin.ModelAdmin):
+class ReservaAdmin(ModelAdmin):
     form = ReservaForm
     list_display = ("cliente", "fecha_turno", "estado", "descripcion")
     list_filter = ("fecha_turno", "estado")
     search_fields = ("cliente__nombre",)
     date_hierarchy = "fecha_turno"
     autocomplete_fields = ("cliente",)
-    list_editable = ("estado", 'fecha_turno', 'descripcion')
-    actions = [convertir_a_atencion]
+    list_editable = ("estado",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).exclude(estado='completada')
 
 
-class ReservaInline(admin.TabularInline):
+class ReservaInline(TabularInline):
     model = Reserva
     form = ReservaForm
     fields = ('fecha_turno', 'estado', 'descripcion', 'servicios')
@@ -66,7 +55,7 @@ class ReservaInline(admin.TabularInline):
     verbose_name = 'Reserva'
     verbose_name_plural = 'Reservas'
 
-class AtencionInline(admin.TabularInline):
+class AtencionInline(TabularInline):
     model = Atencion
     fields = ('fecha', 'total', 'notas')
     readonly_fields = ('fecha', 'total', 'notas')
@@ -77,20 +66,21 @@ class AtencionInline(admin.TabularInline):
     verbose_name_plural = 'Historial de Atenciones'
 
 
-class AtencionServicioInline(admin.TabularInline):
+class AtencionServicioInline(TabularInline):
     model = AtencionServicio
-    fields = ('servicio', 'precio_aplicado')
+    fields = ('servicio',)
     extra = 1
 
     class Media:
         js = ('admin/js/autocomplete_precio.js',)
 
 
-class VentaItemInline(admin.TabularInline):
+class VentaItemInline(TabularInline):
     model = VentaItem
     fields = ('producto', 'cantidad', 'subtotal_display')
     readonly_fields = ('subtotal_display',)
     extra = 1
+    tab = True
 
     @admin.display(description='Subtotal')
     def subtotal_display(self, obj):
@@ -100,7 +90,7 @@ class VentaItemInline(admin.TabularInline):
 
 
 @admin.register(Cliente)
-class ClienteAdmin(admin.ModelAdmin):
+class ClienteAdmin(ModelAdmin):
     list_display = ("nombre", "telefono", "email", "created_at")
     search_fields = ("nombre", "telefono", "email")
     list_filter = ("created_at",)
@@ -118,19 +108,35 @@ class ClienteAdmin(admin.ModelAdmin):
 
 
 @admin.register(Servicio)
-class ServicioAdmin(admin.ModelAdmin):
+class ServicioAdmin(ModelAdmin):
     list_display = ("nombre", "precio", "activo")
     list_filter = ("activo", "precio")
     search_fields = ("nombre",)
     list_editable = ("activo",)
 
 
+class AtencionForm(ModelForm):
+    fecha_turno = forms.DateTimeField(
+    widget= forms.DateTimeInput(
+        attrs={'type': 'datetime-local'},
+        format='%d/%m/%Y %H:%M',
+    ),
+    input_formats=['%d/%m/%Y %H:%M'],
+    )
+    class Meta:
+        model = Atencion
+        fields = '__all__'
+        widgets = {
+            'fecha': UnfoldAdminSplitDateTimeWidget,
+        }
+
 @admin.register(Atencion)
-class AtencionAdmin(admin.ModelAdmin):
+class AtencionAdmin(ModelAdmin):
+    form = AtencionForm
     list_display = ("cliente", "fecha", "total", "notas_cortas")
     list_filter = ("fecha", "servicios")
-    search_fields = ("cliente__nombre", "cliente__apellido")
     date_hierarchy = "fecha"
+    search_fields = ('cliente__nombre',)
     inlines = [AtencionServicioInline]
     readonly_fields = ("total",)
     autocomplete_fields = ("cliente",)
@@ -143,7 +149,7 @@ class AtencionAdmin(admin.ModelAdmin):
 
 
 @admin.register(Producto)
-class ProductoAdmin(admin.ModelAdmin):
+class ProductoAdmin(ModelAdmin):
     list_display = ("nombre", "precio_costo", "precio_venta", "stock_display", "activo")
     list_filter = ("activo",)
     search_fields = ("nombre",)
@@ -166,7 +172,7 @@ class ProductoAdmin(admin.ModelAdmin):
 
 
 @admin.register(Venta)
-class VentaAdmin(admin.ModelAdmin):
+class VentaAdmin(ModelAdmin):
     list_display = ("id", "cliente", "fecha", "total")
     list_filter = ("fecha",)
     search_fields = ("cliente__nombre", "cliente__apellido")
@@ -174,3 +180,12 @@ class VentaAdmin(admin.ModelAdmin):
     inlines = [VentaItemInline]
     readonly_fields = ("total", "fecha")
     autocomplete_fields = ("cliente",)
+    fieldsets = (
+        (None, {
+            'fields': ('cliente',)
+        }),
+        ('Resumen', {
+            'classes': ['tab'],
+            'fields': ('total', 'fecha', 'notas'),
+        })
+    )
