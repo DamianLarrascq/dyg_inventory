@@ -82,7 +82,6 @@ UNFOLD = {
     'DASHBOARD_CALLBACK': 'inventory.dashboard.dashboard_callback',
     'SITE_TITLE': 'Peluquería DYG',
     'SITE_HEADER': 'Peluquería DYG',
-    'SITE_SUBHEADER': 'Gestión de inventario',
 }
 
 # Database
