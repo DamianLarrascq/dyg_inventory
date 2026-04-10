@@ -1,7 +1,6 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 from django.forms import ModelForm
-from unfold.widgets import UnfoldAdminSplitDateTimeWidget
 from django.utils.html import format_html
 from .models import (Servicio, Cliente, Atencion, AtencionServicio, Producto, Venta, VentaItem, Reserva)
 from django import forms
@@ -124,7 +123,7 @@ class ServicioAdmin(ModelAdmin):
 
 
 class AtencionForm(ModelForm):
-    fecha_turno = forms.DateTimeField(
+    fecha = forms.DateTimeField(
     widget= forms.DateTimeInput(
         attrs={'type': 'datetime-local'},
         format='%d/%m/%Y %H:%M',
@@ -133,11 +132,8 @@ class AtencionForm(ModelForm):
     )
     class Meta:
         model = Atencion
-        fields = ['cliente', 'fecha_turno', 'total']
-        widgets = {
-            'fecha': UnfoldAdminSplitDateTimeWidget,
-        }
-
+        fields = '__all__'
+        
 @admin.register(Atencion)
 class AtencionAdmin(ModelAdmin):
     form = AtencionForm
@@ -150,7 +146,7 @@ class AtencionAdmin(ModelAdmin):
     autocomplete_fields = ("cliente",)
     fieldsets = (
         (None, {
-            'fields': ('cliente', 'fecha_turno', 'total'),
+            'fields': ('cliente', 'fecha', 'total'),
         }),
         ("Notas", {
             'fields': ('notas',),
@@ -192,7 +188,7 @@ class ProductoAdmin(ModelAdmin):
 class VentaAdmin(ModelAdmin):
     list_display = ("id", "cliente", "fecha", "total")
     list_filter = ("fecha",)
-    search_fields = ("cliente__nombre", "cliente__apellido")
+    search_fields = ("cliente__nombre",)
     date_hierarchy = "fecha"
     inlines = [VentaItemInline]
     readonly_fields = ("total", "fecha")
