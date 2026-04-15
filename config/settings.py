@@ -82,6 +82,51 @@ UNFOLD = {
     'DASHBOARD_CALLBACK': 'inventory.dashboard.dashboard_callback',
     'SITE_TITLE': 'Peluquería DYG',
     'SITE_HEADER': 'Peluquería DYG',
+    'SITE_SYMBOL': 'content_cut',
+    'SIDEBAR': {
+        'navigation': [
+            {
+                'title': 'Operación',
+                'items': [
+                    {
+                        'title': 'Reservas',
+                        'icon': 'calendar_month',
+                        'link': '/admin/inventory/reserva/',
+                    },
+                    {
+                        'title': 'Atenciones',
+                        'icon': 'assignment',
+                        'link': '/admin/inventory/atencion/',
+                    },
+                    {
+                        'title': 'Ventas',
+                        'icon': 'point_of_sale',
+                        'link': '/admin/inventory/venta/',
+                    },
+                ],
+            },
+            {
+                'title': 'Gestión',
+                'items': [
+                    {
+                        'title': 'Clientes',
+                        'icon': 'people',
+                        'link': '/admin/inventory/cliente/',
+                    },
+                    {
+                        'title': 'Servicios',
+                        'icon': 'content_cut',
+                        'link': '/admin/inventory/servicio',
+                    },
+                    {
+                        'title': 'Productos',
+                        'icon': 'inventory_2',
+                        'link': '/admin/inventory/producto/',
+                    },
+                ],
+            },
+        ],
+    },
 }
 
 # Database

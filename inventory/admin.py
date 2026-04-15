@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import query
 from unfold.admin import ModelAdmin, TabularInline
 from django.forms import ModelForm
 from django.utils.html import format_html
@@ -27,16 +28,68 @@ class ReservaForm(ModelForm):
 @admin.register(Reserva)
 class ReservaAdmin(ModelAdmin):
     form = ReservaForm
-    list_display = ("cliente", "fecha_turno", "estado", "descripcion")
+    list_display = ("cliente", 'servicio_display', 'fecha_display', 'estado_badge')
     list_filter = ("fecha_turno", "estado")
     search_fields = ("cliente__nombre",)
     date_hierarchy = "fecha_turno"
-    autocomplete_fields = ("cliente",)
-    list_editable = ("estado",)
+    autocomplete_fields = ("cliente", 'servicios')
+    list_per_page = 20
+
+    def servicio_display(self, obj):
+        return ", ".join(s.nombre for s in obj.servicios.all()) or "-"
+    servicio_display.short_description = 'Servicio'
+
+    def fecha_display(self, obj):
+        return obj.fecha_turno.strftime('%d/%m %H:%M')
+    fecha_display.short_description = 'Turno'
+
+    def estado_badge(self, obj):
+        colors = {
+            'pendiente': '#f39c12',
+            'confirmada': '#27ae60',
+            'cancelada': '#e74c3c',
+            'completada': '#3498db',
+        }
+        color = colors.get(obj.estado, '#7f8c8d')
+
+        return format_html(
+            '<span style="background:{}; color:white; padding:4px 8px; border-radius:6px;">{}</span>',
+            color,
+            obj.get_estado_display()           
+        )
+    estado_badge.short_description = 'Estado'
 
     def get_queryset(self, request):
         return super().get_queryset(request).exclude(estado='completada')
 
+    @admin.action(description='Confirmar reservas')
+    def confirmar_reservas(modeladmin, request, queryset):
+        queryset.update(estado='confirmada')
+
+    @admin.action(description='Completar y generar atención')
+    def completar_reserva(modeladmin, request, queryset):
+        for reserva in queryset:
+            if hasattr(reserva, "atencion"):
+                continue
+
+            reserva.estado = 'completada'
+            reserva.save()
+
+            atencion = Atencion.objects.create(
+                cliente=reserva.cliente,
+                reserva=reserva,
+                fecha=reserva.fecha_turno,
+                notas=reserva.descripcion,
+            )
+
+            for servicio in reserva.servicios.all():
+                AtencionServicio.objects.create(
+                    atencion=atencion,
+                    servicio=servicio,
+                    precio_aplicado=servicio.precio,
+                )
+
+    actions = [confirmar_reservas, completar_reserva]
 
 class ReservaInline(TabularInline):
     model = Reserva
@@ -86,6 +139,7 @@ class VentaItemInline(TabularInline):
     model = VentaItem
     fields = ('producto', 'cantidad', 'subtotal_display')
     readonly_fields = ('subtotal_display',)
+    autocomplete_fields = ('producto',)
     extra = 1
     tab = True
 
@@ -99,8 +153,9 @@ class VentaItemInline(TabularInline):
 @admin.register(Cliente)
 class ClienteAdmin(ModelAdmin):
     list_display = ("nombre", "telefono", "email", "created_at")
-    search_fields = ("nombre", "telefono", "email")
+    search_fields = ("nombre", "telefono")
     list_filter = ("created_at",)
+    ordering = ('-created_at',)
     inlines = [AtencionInline, ReservaInline, VentaInline]
     readonly_fields = ("created_at",)
     fieldsets = (
@@ -137,7 +192,7 @@ class AtencionForm(ModelForm):
 @admin.register(Atencion)
 class AtencionAdmin(ModelAdmin):
     form = AtencionForm
-    list_display = ("cliente", "fecha", "total", "notas_cortas")
+    list_display = ("cliente", 'servicios_display', 'fecha_display', 'total',)
     list_filter = ("fecha", "servicios")
     date_hierarchy = "fecha"
     search_fields = ('cliente__nombre',)
@@ -154,6 +209,13 @@ class AtencionAdmin(ModelAdmin):
         }),
     )
 
+    def servicios_display(self, obj):
+        return ', '.join(s.nombre for s in obj.servicios.all())
+    servicios_display.short_description = 'Servicios'
+
+    def fecha_display(self, obj):
+        return obj.fecha.strftime('%d/%m %H:%M')
+
     @admin.display(description="Notas")
     def notas_cortas(self, obj):
         if obj.notas:
@@ -164,7 +226,7 @@ class AtencionAdmin(ModelAdmin):
 @admin.register(Producto)
 class ProductoAdmin(ModelAdmin):
     list_display = ("nombre", "precio_costo", "precio_venta", "stock_display", "activo")
-    list_filter = ("activo",)
+    list_filter = ("activo", 'stock')
     search_fields = ("nombre",)
     list_editable = ("activo",)
 
@@ -186,7 +248,7 @@ class ProductoAdmin(ModelAdmin):
 
 @admin.register(Venta)
 class VentaAdmin(ModelAdmin):
-    list_display = ("id", "cliente", "fecha", "total")
+    list_display = ("__str__", "cliente", "fecha_display", "total")
     list_filter = ("fecha",)
     search_fields = ("cliente__nombre",)
     date_hierarchy = "fecha"
@@ -202,3 +264,6 @@ class VentaAdmin(ModelAdmin):
             'fields': ('total', 'fecha', 'notas'),
         })
     )
+
+    def fecha_display(self, obj):
+        return obj.fecha.strftime('%d/%m %H:%M')
