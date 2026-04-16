@@ -1,6 +1,7 @@
-from django.db import models
+from re import L
+from django.db import models, transaction
 from django.dispatch import receiver
-from django.db.models.signals import post_save
+from django.db.models.signals import m2m_changed, post_save
 
 
 class Servicio(models.Model):
@@ -51,11 +52,80 @@ class Producto(models.Model):
     def __str__(self):
         return f'{self.nombre} (stock: {self.stock})'
 
+    
+class Reserva(models.Model):
+
+    ESTADOS_RESERVA = [
+        ('pendiente', 'Pendiente'),
+        ('confirmada', 'Confirmada'),
+        ('cancelada', 'Cancelada'),
+        ('completada', 'Completada'),
+    ]
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas') 
+    servicios = models.ManyToManyField(Servicio, related_name='reservas', blank=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS_RESERVA, default='pendiente')
+    fecha_turno = models.DateTimeField()
+    descripcion = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Reserva'
+        verbose_name_plural = 'Reservas'
+        ordering = ['-fecha_turno']
+
+    def __str__(self):
+        return f'Reserva #{self.pk} - {self.cliente} - {self.fecha_turno.strftime('%d/%m/%Y %H:%M')}'
+
+
+def crear_atencion_desde_reserva(reserva):
+    if hasattr(reserva, "atencion"):
+        return
+
+    atencion = Atencion.objects.create(
+        cliente=reserva.cliente,
+        reserva=reserva,
+        fecha=reserva.fecha_turno,
+        notas=reserva.descripcion,
+    )
+
+    for servicio in reserva.servicios.all():
+        AtencionServicio.objects.create(
+            atencion=atencion,
+            servicio=servicio,
+            precio_aplicado=servicio.precio,
+        )
+
+# @receiver(m2m_changed, sender=Reserva.servicios.through)
+# def reserva_a_atencion(sender, instance, action, **kwargs):
+#     if action not in ['post_add', 'post_remove', 'post_clear']:
+#         return
+
+#     if instance.estado != 'completada':
+#         return
+
+#     transaction.on_commit(lambda: crear_atencion_desde_reserva(instance))
+
+# @receiver(post_save, sender=Reserva)
+# def reserva_completada(sender, instance, created, **kwargs):
+#     if created:
+#         return
+#     if instance.estado != 'completada':
+#         return
+    
+#     transaction.on_commit(lambda: crear_atencion_desde_reserva(instance))
 
 class Atencion(models.Model):
     cliente = models.ForeignKey(
         Cliente, on_delete=models.CASCADE,
         related_name='atenciones'
+    )
+    reserva = models.OneToOneField(
+        Reserva,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='atencion'
     )
     fecha = models.DateTimeField()
     servicios = models.ManyToManyField(
@@ -71,7 +141,7 @@ class Atencion(models.Model):
         ordering = ['-fecha']
 
     def __str__(self):
-        return f'Atencion de {self.cliente} el {self.fecha.strftime('%d/%m/%Y %H:%M')}'
+        return f'Atencion de {self.cliente}'
 
     def calcular_total(self):
         total = sum(
@@ -125,8 +195,7 @@ class Venta(models.Model):
         ordering = ['-fecha']
 
     def __str__(self):
-        cliente_str = str(self.cliente) if self.cliente else 'Sin cliente'
-        return f'Venta #{self.pk} - {cliente_str} - ${self.total}'
+        return f'Venta #{self.pk}'
 
     def calcular_total(self):
         return sum(item.subtotal for item in self.ventaitem_set.all())
@@ -168,49 +237,3 @@ class VentaItem(models.Model):
         super().save(*args, **kwargs)
         self.venta.save()
 
-    
-class Reserva(models.Model):
-
-    ESTADOS_RESERVA = [
-        ('pendiente', 'Pendiente'),
-        ('confirmada', 'Confirmada'),
-        ('cancelada', 'Cancelada'),
-        ('completada', 'Completada'),
-    ]
-    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas') 
-    servicios = models.ForeignKey(Servicio, on_delete=models.CASCADE, related_name='reservas', null=True, blank=True)
-    estado = models.CharField(max_length=20, choices=ESTADOS_RESERVA, default='pendiente')
-    fecha_turno = models.DateTimeField()
-    descripcion = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Reserva'
-        verbose_name_plural = 'Reservas'
-        ordering = ['-fecha_turno']
-
-    def __str__(self):
-        return f'Reserva #{self.pk} - {self.cliente} - {self.fecha_turno.strftime('%d/%m/%Y %H:%M')}'
-
-
-@receiver(post_save, sender=Reserva)
-def reserva_a_atencion(sender, instance, **kwargs):
-    if instance.estado == 'completada':
-        existe = Atencion.objects.filter(
-            cliente = instance.cliente,
-            fecha = instance.fecha_turno,
-        ).exists()
-
-        if not existe:
-            atencion = Atencion.objects.create(
-                cliente = instance.cliente,
-                fecha = instance.fecha_turno,
-                notas = instance.descripcion,
-            )
-            if instance.servicios:
-                AtencionServicio.objects.create(
-                    atencion = atencion,
-                    servicio = instance.servicios,
-                    precio_aplicado = instance.servicios.precio,
-                )

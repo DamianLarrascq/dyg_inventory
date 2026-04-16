@@ -87,7 +87,7 @@ def dashboard_callback(request, context):
                         reverse("admin:inventory_cliente_change", args=[r.cliente.pk]),
                         str(r.cliente),
                     ),
-                    str(r.servicios) if r.servicios else "-",
+                    ", ".join(s.nombre for s in r.servicios.all()) or '-',
                     format_html(
                         '<a href="{}">{}</a>',
                         reverse("admin:inventory_reserva_change", args=[r.pk]),
@@ -95,7 +95,7 @@ def dashboard_callback(request, context):
                     ),
                     r.get_estado_display(),
                 ]
-                for r in reservas_semana.select_related('cliente', 'servicios').order_by('fecha_turno')
+                for r in reservas_semana.select_related('cliente').prefetch_related('servicios').order_by('fecha_turno')
             ],
         },
         "tabla_clientes": {
