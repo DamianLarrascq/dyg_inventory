@@ -114,6 +114,11 @@ UNFOLD = {
                         'link': '/admin/inventory/cliente/',
                     },
                     {
+                        'title': 'Empleados',
+                        'icon': 'id_card',
+                        'link': '/admin/inventory/empleado'
+                    },
+                    {
                         'title': 'Servicios',
                         'icon': 'content_cut',
                         'link': '/admin/inventory/servicio',

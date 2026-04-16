@@ -1,13 +1,25 @@
-from re import L
-from django.db import models, transaction
-from django.dispatch import receiver
-from django.db.models.signals import m2m_changed, post_save
+from django.db import models
+from django.core.exceptions import ValidationError
+from django.db.models import constraints
+
+
+class Empleado(models.Model):
+    nombre = models.CharField(max_length=100)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Empleado'
+        verbose_name_plural = 'Empleados'
+
+    def __str__(self):
+        return self.nombre
 
 
 class Servicio(models.Model):
     nombre = models.CharField(max_length=100)
     descripcion = models.TextField(blank=True, null=True)
     precio = models.DecimalField(max_digits=10, decimal_places=2)
+    empleados = models.ManyToManyField(Empleado, related_name='servicios')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -62,6 +74,7 @@ class Reserva(models.Model):
         ('completada', 'Completada'),
     ]
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas') 
+    empleado = models.ForeignKey(Empleado, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservas')
     servicios = models.ManyToManyField(Servicio, related_name='reservas', blank=True)
     estado = models.CharField(max_length=20, choices=ESTADOS_RESERVA, default='pendiente')
     fecha_turno = models.DateTimeField()
@@ -73,9 +86,27 @@ class Reserva(models.Model):
         verbose_name = 'Reserva'
         verbose_name_plural = 'Reservas'
         ordering = ['-fecha_turno']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empleado', 'fecha_turno'],
+                name='unique_reserva_empleado_hora'
+            )
+        ]
 
     def __str__(self):
         return f'Reserva #{self.pk} - {self.cliente} - {self.fecha_turno.strftime('%d/%m/%Y %H:%M')}'
+
+    def clean(self):
+        if not self.empleado or not self.fecha_turno:
+            return
+        
+        conflicto = Reserva.objects.filter(
+            empleado = self.empleado,
+            fecha_turno = self.fecha_turno,
+        ).exclude(pk=self.pk).exists()
+
+        if conflicto:
+            raise ValidationError(f'{self.empleado.nombre} ya tiene una reserva en ese horario.')
 
 
 def crear_atencion_desde_reserva(reserva):
@@ -96,24 +127,6 @@ def crear_atencion_desde_reserva(reserva):
             precio_aplicado=servicio.precio,
         )
 
-# @receiver(m2m_changed, sender=Reserva.servicios.through)
-# def reserva_a_atencion(sender, instance, action, **kwargs):
-#     if action not in ['post_add', 'post_remove', 'post_clear']:
-#         return
-
-#     if instance.estado != 'completada':
-#         return
-
-#     transaction.on_commit(lambda: crear_atencion_desde_reserva(instance))
-
-# @receiver(post_save, sender=Reserva)
-# def reserva_completada(sender, instance, created, **kwargs):
-#     if created:
-#         return
-#     if instance.estado != 'completada':
-#         return
-    
-#     transaction.on_commit(lambda: crear_atencion_desde_reserva(instance))
 
 class Atencion(models.Model):
     cliente = models.ForeignKey(

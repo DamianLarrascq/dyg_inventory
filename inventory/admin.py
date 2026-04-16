@@ -3,8 +3,18 @@ from django.db.models import query
 from unfold.admin import ModelAdmin, TabularInline
 from django.forms import ModelForm
 from django.utils.html import format_html
-from .models import (Servicio, Cliente, Atencion, AtencionServicio, Producto, Venta, VentaItem, Reserva)
+from .models import (Servicio, Cliente, Atencion, AtencionServicio, Producto, Venta, VentaItem, Reserva, Empleado)
 from django import forms
+
+@admin.register(Empleado)
+class Empleado(ModelAdmin):
+    list_display = ('nombre', 'activo')
+    search_fields = ('nombre',)
+    list_editable = ('activo',)
+
+
+class EmpleadoForm(ModelForm):
+    nombre = forms.CharField(max_length=100)
 
 
 class ReservaForm(ModelForm):
@@ -18,7 +28,7 @@ class ReservaForm(ModelForm):
     )
     class Meta:
         model = Reserva
-        fields = ['cliente', 'servicios', 'fecha_turno', 'estado', 'descripcion']
+        fields = ['cliente', 'empleado', 'servicios', 'fecha_turno', 'estado', 'descripcion']
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
