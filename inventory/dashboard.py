@@ -36,6 +36,13 @@ def dashboard_callback(request, context):
         fecha__date__gte=inicio_semana
     ).select_related('cliente').order_by('-fecha')
 
+    def admin_link(url_name, obj_id, label):
+        return format_html(
+            '<a href="{}">{}</a>',
+            reverse(url_name, args=[obj_id]),
+            label
+        )
+
     context.update({
         'kpi': [
             {
@@ -79,23 +86,39 @@ def dashboard_callback(request, context):
             ],
         },
         "tabla_reservas": {
-            "headers": ["Cliente", "Servicio", "Fecha", "Estado"],
+            "headers": ["Cliente", "Empleado", "Servicio", "Fecha", "Estado"],
             "rows": [
                 [
-                    format_html(
-                        '<a href="{}">{}</a>',
-                        reverse("admin:inventory_cliente_change", args=[r.cliente.pk]),
+                    admin_link(
+                        "admin:inventory_cliente_change",
+                        r.cliente.pk,
                         str(r.cliente),
                     ),
-                    ", ".join(s.nombre for s in r.servicios.all()) or '-',
-                    format_html(
-                        '<a href="{}">{}</a>',
-                        reverse("admin:inventory_reserva_change", args=[r.pk]),
+                    admin_link(
+                        'admin:inventory_reserva_change',
+                        r.pk,
+                        r.empleado.nombre if r.empleado else '-',
+                    ),
+                    admin_link(
+                        "admin:inventory_reserva_change",
+                        r.pk,
+                        ", ".join(s.nombre for s in r.servicios.all()) or '-',
+                    ),
+                    admin_link(
+                        "admin:inventory_reserva_change",
+                        r.pk,
                         r.fecha_turno.strftime("%d/%m %H:%M"),
                     ),
-                    r.get_estado_display(),
+                    admin_link(
+                        "admin:inventory_reserva_change",
+                        r.pk,
+                        r.estado_badge(),
+                    ),
                 ]
-                for r in reservas_semana.select_related('cliente').prefetch_related('servicios').order_by('fecha_turno')
+                for r in reservas_semana
+                .select_related('cliente')
+                .prefetch_related('servicios')
+                .order_by('fecha_turno')
             ],
         },
         "tabla_clientes": {
@@ -117,18 +140,26 @@ def dashboard_callback(request, context):
             "headers": ["Cliente", "Servicios", "Fecha", "Total"],
             "rows": [
                 [
-                    format_html(
-                        '<a href="{}">{}</a>',
-                        reverse("admin:inventory_cliente_change", args=[a.cliente.pk]),
+                    admin_link(
+                        "admin:inventory_cliente_change",
+                        a.cliente.pk,
                         str(a.cliente),
                     ),
-                    ", ".join(str(s) for s in a.servicios.all()),
-                    format_html(
-                        '<a href="{}">{}</a>',
-                        reverse("admin:inventory_atencion_change", args=[a.pk]),
+                    admin_link(
+                        "admin:inventory_atencion_change",
+                        a.pk,
+                        ", ".join(s.nombre for s in a.servicios.all()) or '-',
+                    ),
+                    admin_link(
+                        "admin:inventory_atencion_change",
+                        a.pk,
                         a.fecha.strftime("%d/%m %H:%M"),
                     ),
-                    f"${a.total:,.2f}",
+                    admin_link(
+                        "admin:inventory_atencion_change",
+                        a.pk,
+                        f"${a.total:,.2f}",
+                    ),
                 ]
                 for a in atenciones_semana
             ],

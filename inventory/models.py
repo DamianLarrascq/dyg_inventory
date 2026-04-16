@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.db.models import constraints
+from django.utils.html import format_html
 
 
 class Empleado(models.Model):
@@ -73,6 +74,14 @@ class Reserva(models.Model):
         ('cancelada', 'Cancelada'),
         ('completada', 'Completada'),
     ]
+
+    ESTADO_COLORES = {
+        'pendiente': '#f39c12',
+        'confirmada': '#27ae60',
+        'cancelada': '#e74c3c',
+        'completada': '#3498db',
+    }
+
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='reservas') 
     empleado = models.ForeignKey(Empleado, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservas')
     servicios = models.ManyToManyField(Servicio, related_name='reservas', blank=True)
@@ -107,6 +116,14 @@ class Reserva(models.Model):
 
         if conflicto:
             raise ValidationError(f'{self.empleado.nombre} ya tiene una reserva en ese horario.')
+    
+    def estado_badge(self):
+        color = self.ESTADO_COLORES.get(self.estado, '#7f8c8d')
+        return format_html(
+            '<span style="background:{}; color:white; padding:4px 8px; border-radius:6px;">{}</span>',
+            color,
+            self.get_estado_display()
+        )
 
 
 def crear_atencion_desde_reserva(reserva):
@@ -116,6 +133,7 @@ def crear_atencion_desde_reserva(reserva):
     atencion = Atencion.objects.create(
         cliente=reserva.cliente,
         reserva=reserva,
+        empleado=reserva.empleado,
         fecha=reserva.fecha_turno,
         notas=reserva.descripcion,
     )
@@ -132,6 +150,13 @@ class Atencion(models.Model):
     cliente = models.ForeignKey(
         Cliente, on_delete=models.CASCADE,
         related_name='atenciones'
+    )
+    empleado = models.ForeignKey(
+        Empleado,
+        on_delete=models.SET_NULL,
+        null = True,
+        blank = True,
+        related_name = 'atenciones'
     )
     reserva = models.OneToOneField(
         Reserva,

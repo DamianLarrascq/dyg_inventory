@@ -19,12 +19,20 @@ class EmpleadoForm(ModelForm):
 
 class ReservaForm(ModelForm):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['servicios'].queryset = Servicio.objects.filter(activo=True)
+
+        if self.instance and self.instance.fecha_turno:
+            self.initial['fecha_turno'] = self.instance.fecha_turno.strftime('%Y-%m-%dT%H:%M')
+
     fecha_turno = forms.DateTimeField(
         widget= forms.DateTimeInput(
             attrs={'type': 'datetime-local'},
-            format='%d/%m/%Y %H:%M',
+            format='%Y-%m-%dT%H:%M',
         ),
-        input_formats=['%d/%m/%Y %H:%M'],
+        input_formats=['%Y-%m-%dT%H:%M'],
     )
     class Meta:
         model = Reserva
@@ -69,7 +77,7 @@ class ReservaAdmin(ModelAdmin):
     def fecha_display(self, obj):
         return obj.fecha_turno.strftime('%d/%m %H:%M')
     fecha_display.short_description = 'Turno'
-
+    
     def estado_badge(self, obj):
         colors = {
             'pendiente': '#f39c12',
@@ -133,7 +141,7 @@ class AtencionInline(TabularInline):
     model = Atencion
     tab = True
     fields = ('fecha', 'total', 'servicios_display','notas')
-    readonly_fields = ('fecha', 'total', 'servicios_display','notas')
+    readonly_fields = ('fecha', 'empleado', 'total', 'servicios_display','notas')
     extra = 0
     can_delete = False
     show_change_link = True
@@ -223,16 +231,16 @@ class AtencionForm(ModelForm):
 @admin.register(Atencion)
 class AtencionAdmin(ModelAdmin):
     form = AtencionForm
-    list_display = ("cliente", 'servicios_display', 'fecha_display', 'total',)
+    list_display = ("cliente", 'empleado', 'servicios_display', 'fecha_display', 'total',)
     list_filter = ("fecha", "servicios")
     date_hierarchy = "fecha"
     search_fields = ('cliente__nombre',)
     inlines = [AtencionServicioInline]
     readonly_fields = ("total",)
-    autocomplete_fields = ("cliente",)
+    autocomplete_fields = ("cliente", 'empleado')
     fieldsets = (
         (None, {
-            'fields': ('cliente', 'fecha', 'total'),
+            'fields': ('cliente', 'empleado', 'fecha'),
         }),
         ("Notas", {
             'fields': ('notas',),
