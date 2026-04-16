@@ -24,6 +24,11 @@ class ReservaForm(ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['servicios'].queryset = Servicio.objects.filter(activo=True)
 
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "servicios":
+            kwargs["queryset"] = Servicio.objects.filter(activo=True)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
 
 @admin.register(Reserva)
 class ReservaAdmin(ModelAdmin):
@@ -34,10 +39,22 @@ class ReservaAdmin(ModelAdmin):
     date_hierarchy = "fecha_turno"
     autocomplete_fields = ("cliente", 'servicios')
     list_per_page = 20
+    readonly_fields = ('resumen_servicios',)
 
     def servicio_display(self, obj):
         return ", ".join(s.nombre for s in obj.servicios.all()) or "-"
     servicio_display.short_description = 'Servicio'
+
+    def resumen_servicios(self, obj):
+        if not obj.pk:
+            return '-'
+
+        servicios = obj.servicios.all()
+        total = sum(s.precio for s in servicios)
+
+        nombres = ', '.join(s.nombre for s in servicios)
+
+        return f'{nombres} | Total: ${total}'
 
     def fecha_display(self, obj):
         return obj.fecha_turno.strftime('%d/%m %H:%M')
@@ -105,13 +122,17 @@ class ReservaInline(TabularInline):
 class AtencionInline(TabularInline):
     model = Atencion
     tab = True
-    fields = ('fecha', 'total', 'notas')
-    readonly_fields = ('fecha', 'total', 'notas')
+    fields = ('fecha', 'total', 'servicios_display','notas')
+    readonly_fields = ('fecha', 'total', 'servicios_display','notas')
     extra = 0
     can_delete = False
     show_change_link = True
     verbose_name = 'Atencion'
     verbose_name_plural = 'Historial de Atenciones'
+
+    def servicios_display(self, obj):
+        return ', '.join(s.nombre for s in obj.servicios.all())
+    servicios_display.short_description = 'Servicios'
 
 
 class AtencionServicioInline(TabularInline):
@@ -248,7 +269,7 @@ class ProductoAdmin(ModelAdmin):
 
 @admin.register(Venta)
 class VentaAdmin(ModelAdmin):
-    list_display = ("__str__", "cliente", "fecha_display", "total")
+    list_display = ("cliente", "fecha_display", "total")
     list_filter = ("fecha",)
     search_fields = ("cliente__nombre",)
     date_hierarchy = "fecha"

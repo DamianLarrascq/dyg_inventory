@@ -141,7 +141,7 @@ class Atencion(models.Model):
         ordering = ['-fecha']
 
     def __str__(self):
-        return f'Atencion de {self.cliente} el {self.fecha.strftime('%d/%m/%Y %H:%M')}'
+        return f'Atencion de {self.cliente}'
 
     def calcular_total(self):
         total = sum(
@@ -195,8 +195,7 @@ class Venta(models.Model):
         ordering = ['-fecha']
 
     def __str__(self):
-        cliente_str = str(self.cliente) if self.cliente else 'Sin cliente'
-        return f'Venta #{self.pk} - {cliente_str} - ${self.total}'
+        return f'Venta #{self.pk}'
 
     def calcular_total(self):
         return sum(item.subtotal for item in self.ventaitem_set.all())
