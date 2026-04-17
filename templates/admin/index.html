@@ -3,6 +3,23 @@
 
 {% block content %}
 
+{% url "admin:inventory_reserva_add" as url_reserva %}
+{% url "admin:inventory_atencion_add" as url_atencion %}
+{% url "admin:inventory_venta_add" as url_venta %}
+
+{% component "unfold/components/flex.html" with class="gap-3 mb-8" %}
+    {% component "unfold/components/button.html" with href=url_reserva submit=0 %}
+        {% trans "+ Nueva reserva" %}
+    {% endcomponent %}
+    {% component "unfold/components/button.html" with href=url_atencion submit=0 %}
+        {% trans "+ Nueva atención" %}
+    {% endcomponent %}
+    {% component "unfold/components/button.html" with href=url_venta submit=0 %}
+        {% trans "+ Nueva venta" %}
+    {% endcomponent %}
+{% endcomponent %}
+
+
 {# KPIs #}
 {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-col lg:flex-row" %}
     {% for card in kpi %}
@@ -15,7 +32,7 @@
 
 {# Reservas + Stock #}
 {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-col lg:flex-row" %}
-    {% trans "Reservas esta semana" as title %}
+    {% trans "Reservas de hoy" as title %}
     {% component "unfold/components/card.html" with class="lg:w-2/3" title=title %}
         {% component "unfold/components/table.html" with card_included=1 striped=1 table=tabla_reservas %}{% endcomponent %}
     {% endcomponent %}

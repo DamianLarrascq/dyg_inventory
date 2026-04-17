@@ -1,6 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-from django.db.models import constraints
+from django.utils import timezone
 from django.utils.html import format_html
 
 
@@ -103,7 +103,8 @@ class Reserva(models.Model):
         ]
 
     def __str__(self):
-        return f'Reserva #{self.pk} - {self.cliente} - {self.fecha_turno.strftime('%d/%m/%Y %H:%M')}'
+        local = timezone.localtime(self.fecha_turno)
+        return f'Reserva #{self.pk} - {self.cliente} - {local.strftime("%d/%m/%Y %H:%M")}'
 
     def clean(self):
         if not self.empleado or not self.fecha_turno:

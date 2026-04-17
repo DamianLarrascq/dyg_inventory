@@ -1,5 +1,5 @@
+from django.utils import timezone
 from django.contrib import admin
-from django.db.models import query
 from unfold.admin import ModelAdmin, TabularInline
 from django.forms import ModelForm
 from django.utils.html import format_html
@@ -47,6 +47,14 @@ class ReservaForm(ModelForm):
             kwargs["queryset"] = Servicio.objects.filter(activo=True)
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
+    def clean_fecha_turno(self):
+        raw = self.data.get('fecha_turno')
+        fecha = self.cleaned_data['fecha_turno']
+        print(f'RAW: {raw}')
+        print(f'CLEANED: {fecha}')
+        print(f'IS NAIVE: {timezone.is_naive(fecha)}')
+        return fecha
+
 
 @admin.register(Reserva)
 class ReservaAdmin(ModelAdmin):
@@ -75,7 +83,7 @@ class ReservaAdmin(ModelAdmin):
         return f'{nombres} | Total: ${total}'
 
     def fecha_display(self, obj):
-        return obj.fecha_turno.strftime('%d/%m %H:%M')
+        return timezone.localtime(obj.fecha_turno).strftime('%d/%m %H:%M')
     fecha_display.short_description = 'Turno'
     
     def estado_badge(self, obj):
@@ -227,6 +235,12 @@ class AtencionForm(ModelForm):
     class Meta:
         model = Atencion
         fields = '__all__'
+
+    def clean_fecha_turno(self):
+        fecha = self.cleaned_data['fecha_turno']
+        if timezone.is_naive(fecha):
+            fecha = timezone.make_aware(fecha)
+        return fecha
         
 @admin.register(Atencion)
 class AtencionAdmin(ModelAdmin):

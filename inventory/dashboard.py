@@ -1,3 +1,4 @@
+from django.db.models import Sum
 from django.utils import timezone
 from django.utils.html import format_html
 from django.urls import reverse
@@ -7,24 +8,33 @@ from .models import Reserva, Venta, Producto, Cliente, Atencion
 
 def dashboard_callback(request, context):
     hoy = timezone.now().date()
+    ayer = hoy - timedelta(days=1)
     inicio_mes = hoy.replace(day=1)
     inicio_semana = hoy - timedelta(days=hoy.weekday())
 
     reservas_hoy = Reserva.objects.filter(
-        fecha_turno__date = hoy
-    ).exclude(estado='cancelada').count()
-
-    reservas_semana = Reserva.objects.filter(
-        fecha_turno__date__gte = inicio_semana
-    ).exclude(estado='cancelada')
+    fecha_turno__date=hoy).exclude(estado='cancelada').select_related('cliente','empleado').prefetch_related('servicios').order_by('fecha_turno')
 
     ventas_hoy = sum(v.total for v in Venta.objects.filter(fecha__date=hoy))
+    ventas_ayer = sum(v.total for v in Venta.objects.filter(fecha__date=ayer))
     ventas_mes = sum(v.total for v in Venta.objects.filter(fecha__date__gte=inicio_mes))
 
     atenciones_hoy_qs = Atencion.objects.filter(fecha__date=hoy)
+    atenciones_ayer_qs = Atencion.objects.filter(fecha__date=ayer)
     atenciones_mes_qs = Atencion.objects.filter(fecha__date__gte=inicio_mes)
+
     ingresos_atenciones_hoy = sum(a.total for a in atenciones_hoy_qs)
+    ingresos_atenciones_ayer = sum(a.total for a in atenciones_ayer_qs)
     ingresos_atenciones_mes = sum(a.total for a in atenciones_mes_qs)
+
+    ultimos_7_dias = [hoy - timedelta(days=i) for i in range(6, -1, -1)]
+    labels_grafico = [d.strftime('%d/%m') for d in ultimos_7_dias]
+
+    datos_ingresos = []
+    for dia in ultimos_7_dias:
+        ventas_dia = Venta.objects.filter(fecha__date=dia).aggregate(total=Sum('total'))['total'] or 0
+        atenciones_dia = Atencion.objects.filter(fecha__date=dia).aggregate(total=Sum('total'))['total'] or 0
+        datos_ingresos.append(float(ventas_dia + atenciones_dia))
 
     stock_bajo = Producto.objects.filter(stock__lte=3, activo=True).order_by('stock')
 
@@ -36,6 +46,13 @@ def dashboard_callback(request, context):
         fecha__date__gte=inicio_semana
     ).select_related('cliente').order_by('-fecha')
 
+    def calcular_variacion(hoy, ayer):
+        if ayer == 0:
+            return "↑ 100%" if hoy > 0 else "0%"
+        variacion = ((hoy - ayer) / ayer) * 100
+        simbolo = "↑" if variacion > 0 else ("↓" if variacion < 0 else "=")
+        return f'{simbolo} {abs(variacion):.1f}%'
+
     def admin_link(url_name, obj_id, label):
         return format_html(
             '<a href="{}">{}</a>',
@@ -45,20 +62,16 @@ def dashboard_callback(request, context):
 
     context.update({
         'kpi': [
-            {
-                'title': 'Reservas hoy',
-                'metric': reservas_hoy,
-                'footer': f'Semana: {reservas_semana.count()}',
-            },
+
             {
                 'title': 'Ingresos ventas hoy',
                 'metric': f'${ventas_hoy:,.2f}',
-                'footer': f'Mes: ${ventas_mes:,.2f}',
+                'footer': f'Vs ayer: {calcular_variacion(ventas_hoy, ventas_ayer)} | Mes: ${ventas_mes:,.2f}',
             },
             {
                 'title': 'Ingresos atenciones hoy',
                 'metric': f'${ingresos_atenciones_hoy:,.2f}',
-                'footer': f'Mes: ${ingresos_atenciones_mes:,.2f}',
+                'footer': f'Vs ayer: {calcular_variacion(ingresos_atenciones_hoy, ingresos_atenciones_ayer)} | Mes: ${ingresos_atenciones_mes:,.2f}',
             },
             {
                 'title': 'Productos con stock bajo',
@@ -86,39 +99,16 @@ def dashboard_callback(request, context):
             ],
         },
         "tabla_reservas": {
-            "headers": ["Cliente", "Empleado", "Servicio", "Fecha", "Estado"],
+            "headers": ["Hora", "Cliente", "Empleado", "Servicios", "Estado"],
             "rows": [
                 [
-                    admin_link(
-                        "admin:inventory_cliente_change",
-                        r.cliente.pk,
-                        str(r.cliente),
-                    ),
-                    admin_link(
-                        'admin:inventory_reserva_change',
-                        r.pk,
-                        r.empleado.nombre if r.empleado else '-',
-                    ),
-                    admin_link(
-                        "admin:inventory_reserva_change",
-                        r.pk,
-                        ", ".join(s.nombre for s in r.servicios.all()) or '-',
-                    ),
-                    admin_link(
-                        "admin:inventory_reserva_change",
-                        r.pk,
-                        r.fecha_turno.strftime("%d/%m %H:%M"),
-                    ),
-                    admin_link(
-                        "admin:inventory_reserva_change",
-                        r.pk,
-                        r.estado_badge(),
-                    ),
+                    timezone.localtime(r.fecha_turno).strftime('%H:%M'),
+                    admin_link("admin:inventory_cliente_change", r.cliente.pk, str(r.cliente)),
+                    admin_link('admin:inventory_reserva_change', r.pk, r.empleado.nombre if r.empleado else '-'),
+                    ", ".join(s.nombre for s in r.servicios.all()) or '-',
+                    r.estado_badge(),
                 ]
-                for r in reservas_semana
-                .select_related('cliente')
-                .prefetch_related('servicios')
-                .order_by('fecha_turno')
+                for r in reservas_hoy
             ],
         },
         "tabla_clientes": {
@@ -164,5 +154,12 @@ def dashboard_callback(request, context):
                 for a in atenciones_semana
             ],
         },
+        "alertas": [
+        {
+            "mensaje": f"Stock crítico: {p.nombre} ({p.stock} unidades)",
+            "nivel": "danger" if p.stock == 0 else "warning",
+            "link": reverse("admin:inventory_producto_change", args=[p.pk])
+        } for p in stock_bajo
+    ],
     })
     return context
